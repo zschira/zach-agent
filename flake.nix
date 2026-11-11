@@ -17,17 +17,16 @@
       forAllSystems = f:
         nixpkgs.lib.genAttrs systems (system: f nixpkgs.legacyPackages.${system});
 
-      # Replace OWNER with your GitHub username or organization.
       # The CI workflow pushes ghcr.io/<repository_owner>/zach-agent; this
       # default must match that path. You can also override the whole
       # reference at runtime with ZACH_AGENT_IMAGE.
-      imageRepo = "ghcr.io/OWNER/zach-agent";
+      imageRepo = "ghcr.io/zschira/zach-agent";
     in
     {
       packages = forAllSystems (pkgs:
         let
           # When this flake is evaluated from a locked source (e.g.
-          # github:OWNER/zach-agent), self.rev is the commit SHA. The image
+          # github:zschira/zach-agent), self.rev is the commit SHA. The image
           # built by CI is tagged with the same SHA, so launcher and image are
           # coupled without hardcoding versions. For a dirty local path, fall
           # back to latest.

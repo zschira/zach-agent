@@ -26,11 +26,11 @@
       packages = forAllSystems (pkgs:
         let
           # When this flake is evaluated from a locked source (e.g.
-          # github:zschira/zach-agent), self.rev is the commit SHA. The image
-          # built by CI is tagged with the same SHA, so launcher and image are
-          # coupled without hardcoding versions. For a dirty local path, fall
-          # back to latest.
-          imageTag = if (self ? rev) && (self.rev != null) then self.rev else "latest";
+          # github:zschira/zach-agent), self.rev is the commit SHA. CI tags the
+          # image with docker/metadata-action's `sha-<sha>` form, so the prefix
+          # is added here to keep launcher and image coupled without hardcoding
+          # versions. For a dirty local path, fall back to latest.
+          imageTag = if (self ? rev) && (self.rev != null) then "sha-${self.rev}" else "latest";
 
           launcher = pkgs.writeShellScriptBin "zach-agent" ''
               set -euo pipefail

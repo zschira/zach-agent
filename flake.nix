@@ -34,7 +34,11 @@
 
           launcher = pkgs.writeShellScriptBin "zach-agent" ''
               set -euo pipefail
-              export PATH="${pkgs.lib.makeBinPath [ pkgs.git pkgs.docker pkgs.coreutils ]}:$PATH"
+              # No container runtime is pinned here on purpose: the host's
+              # `docker` may be a podman shim, and a nixpkgs podman would not
+              # see the host's rootless configuration. Resolve it from the
+              # caller's PATH instead.
+              export PATH="${pkgs.lib.makeBinPath [ pkgs.git pkgs.coreutils ]}:$PATH"
 
               usage() {
                 echo "usage: zach-agent <workspace-dir> [command...]" >&2

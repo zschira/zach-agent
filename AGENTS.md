@@ -80,6 +80,29 @@ zach-agent ../some-project
 `ghcr.io/OWNER/zach-agent`, but you can override the whole reference with
 `ZACH_AGENT_IMAGE`.
 
+### Container runtime
+
+The launcher calls `docker`, but deliberately does **not** pin it into its
+`PATH` — it resolves from the caller's `PATH`, so a host `docker` that is really
+a podman shim (`podman-docker`, or `virtualisation.podman.dockerCompat` on
+NixOS) is used as-is.
+
+Adding `pkgs.docker` to `makeBinPath` is actively wrong here: it shadows the
+shim with a real Docker client, which then fails with a connection error because
+there is no `dockerd` to talk to — Docker's CLI is only an HTTP client for its
+daemon, whereas podman is daemonless. Pinning `pkgs.podman` instead would miss
+the host's rootless setup (setuid helpers, `containers.conf`, subuid ranges), so
+the runtime stays a host concern.
+
+Only the flags below are used, and the shim covers them, so no podman-specific
+handling is needed. Two behavioural differences are worth knowing:
+
+- **File ownership.** Under rootless podman, container UID 0 maps to the invoking
+  host user, so files the agent writes to `/workspace` come out owned by you.
+  Under Docker they are root-owned on the host.
+- **Named volumes are per-runtime.** Switching between docker and podman starts
+  `pi-agent-home` and the uv volumes empty.
+
 The launcher mounts and injects the same runtime state as the old Makefile:
 
 | Flag | Purpose |
@@ -92,6 +115,9 @@ The launcher mounts and injects the same runtime state as the old Makefile:
 | `-e UV_PROJECT_ENVIRONMENT=/opt/uv-envs/<project>` | Per-project uv venv directory, derived from workspace basename |
 | `-e OPENROUTER_API_KEY` | Forwarded from the host shell (no `=`) |
 | `-e GIT_AUTHOR_NAME/EMAIL` | Read from the workspace repo's git config |
+
+Launcher environment overrides: `ZACH_AGENT_IMAGE`, `ZACH_AGENT_UV_ENV_NAME`,
+`AGENT_KEYS`.
 
 ### Image versions
 
@@ -379,11 +405,6 @@ Implications worth knowing:
   not the vendored `buildNpmPackage`. The package output exists but has
   `lib.fakeHash` placeholders — build once and copy the real hashes from the
   error to switch over. Until then dependency resolution is not reproducible.
-- **Container runs as root**, so files written to the bind-mounted `/workspace`
-  are root-owned on the host. `--user` breaks writes to `/nix` and `/opt/npm`; a
-  non-root user in the `Dockerfile` is the cleaner fix. Note that moving off root
-  means updating `/root/.pi/agent` in the launcher script (or the GitHub
-  Actions workflow) and the `HOME` fallbacks in the `shellHook` together.
 - **Conda/`pixi` projects are unsupported.** See "Why not `pixi`" above.
 - **`HOME` must agree between build and run** for the `~/.agents/skills/nix`
   symlink to be where Pi looks. The `shellHook` falls back to `/root`, matching

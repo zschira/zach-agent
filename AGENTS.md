@@ -345,11 +345,13 @@ non-FHS** — there is no `/lib64/ld-linux-x86-64.so.2` and no `/usr/lib`. Since
 | manylinux wheels with C extensions | Usually; fails if they need libs absent from the library path |
 | `uv python install` | Blocked deliberately |
 
-`UV_PYTHON_DOWNLOADS = "never"` is set in `env`, and `UV_PYTHON` is exported in
-the `shellHook` (it needs the interpreter `PATH` actually resolves to). Without
-these, `uv` fetches portable CPython builds that cannot start here — a confusing
-failure mode. The consequence is that a project requesting a different Python
-version fails to resolve rather than silently downloading one.
+`UV_PYTHON_DOWNLOADS = "never"` is set in `env` so `uv` does not try to fetch
+portable CPython builds that cannot start here (no `/lib64/ld-linux-x86-64.so.2`).
+Python 3.12 remains the default `python3` interpreter and powers the agent's
+skills; a `python3.13` interpreter is also exposed on `PATH` so `uv` can resolve
+projects requiring 3.13 without downloads. A project requesting a Python version
+not available in the shell will still fail to resolve rather than silently
+downloading one.
 
 ### Why not `pixi`
 

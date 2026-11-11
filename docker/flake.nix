@@ -97,8 +97,17 @@
         default = self.packages.${pkgs.system}.pi-coding-agent;
       });
 
-      devShells = forAllSystems (pkgs: {
-        default = pkgs.mkShell {
+      devShells = forAllSystems (pkgs:
+        let
+          # Expose python3.13 for uv-managed projects without shadowing the
+          # python3.12 toolchain used by the agent skills.
+          python3-uv = pkgs.runCommand "python3.13-for-uv" { } ''
+            mkdir -p $out/bin
+            ln -s ${pkgs.python313}/bin/python3.13 $out/bin/python3.13
+          '';
+        in
+        {
+          default = pkgs.mkShell {
           name = "zach-agent";
 
           packages = with pkgs; [
@@ -142,6 +151,11 @@
             poppler-utils # pdftotext, pdfimages
             qpdf
 
+            # Python interpreter for uv-managed projects. Deliberately exposed
+            # only as python3.13 so the python3/python3.12 skills toolchain is
+            # not shadowed.
+            python3-uv
+
             # Package manager for mounted projects. See AGENTS.md for the
             # dynamic-linker and host-.venv caveats. `pixi` is deliberately
             # absent: conda-forge packages ship their own interpreter, which
@@ -165,8 +179,9 @@
             AGENT_KEYS_DIR = "/run/agent-keys";
 
             # uv's managed CPython builds are prebuilt for generic Linux and
-            # cannot start here (no /lib64/ld-linux-x86-64.so.2). Force uv onto
-            # the Nix interpreter instead.
+            # cannot start here (no /lib64/ld-linux-x86-64.so.2). Keep downloads
+            # disabled and rely on the python3.13 interpreter exposed via
+            # python3-uv (plus the existing python3.12 toolchain) on PATH.
             UV_PYTHON_DOWNLOADS = "never";
 
             # Keep the container's venv OUT of the bind-mounted project. A venv
@@ -200,10 +215,7 @@
             echo "  git     $(git --version | cut -d' ' -f3)"
             echo "  rg      $(rg --version | head -n1 | cut -d' ' -f2)"
             echo "  duckdb  $(duckdb --version | cut -d' ' -f1)"
-
-            # Set here rather than in `env` because it needs the interpreter
-            # that PATH actually resolves to.
-            export UV_PYTHON="$(command -v python3)"
+            echo "  python  $(python3 --version | cut -d' ' -f2) skills, $(python3.13 --version 2>/dev/null | cut -d' ' -f2 || echo 'none') uv"
 
             # --- git identity ------------------------------------------------
             # GIT_AUTHOR_* are injected by `make develop`, read from the host's
@@ -279,6 +291,16 @@
             ln -sfn "$PI_SKILLS_STORE" "$skills_dir/nix"
 
             echo "  skills  $(find -L "$skills_dir" -name SKILL.md | wc -l) found in $skills_dir"
+
+            # Install sandbox instructions into Pi's agent directory so they
+            # are available in every workspace, not only when the bind-mounted
+            # project happens to contain an AGENTS.md. Refreshed each entry so
+            # an updated image replaces the file even when /root/.pi/agent is on
+            # a persisted named volume.
+            agent_dir="''${PI_CODING_AGENT_DIR:-''${HOME:-/root}/.pi/agent}"
+            mkdir -p "$agent_dir"
+            cp -f /opt/env/AGENTS.md "$agent_dir/AGENTS.md"
+            echo "  agents  $agent_dir/AGENTS.md"
 
             # The launcher may override this with a per-project path.
             mkdir -p "$UV_PROJECT_ENVIRONMENT"

@@ -24,7 +24,8 @@ COPY flake.lock ./
 
 # Realise the dev shell closure and pin it with a profile so it survives `nix gc`
 # and so container start-up does no network/eval work.
-RUN nix develop --profile /nix/var/nix/profiles/devshell --command true
+RUN nix develop --profile /nix/var/nix/profiles/devshell --command true \
+ && nix print-dev-env > /opt/env/dev-shell-env.sh
 
 WORKDIR /workspace
 
@@ -32,11 +33,10 @@ WORKDIR /workspace
 # ends up in an image layer or in /nix/store.
 ENV OPENROUTER_API_KEY=""
 
-# Everything runs inside the pinned dev shell:
-#   docker run --rm -it -v "$PWD:/workspace" \
-#     -e OPENROUTER_API_KEY zach-agent
-#   docker run --rm    -v "$PWD:/workspace" \
-#     --env-file .env zach-agent pi --version
-ENTRYPOINT ["nix", "develop", "/nix/var/nix/profiles/devshell", "--command"]
+# Load the pre-computed dev-shell environment instead of invoking `nix develop`
+# at runtime. This avoids per-start flake evaluation and store realisation.
+COPY entrypoint.sh /opt/env/entrypoint.sh
+RUN chmod +x /opt/env/entrypoint.sh
+ENTRYPOINT ["/opt/env/entrypoint.sh"]
 CMD ["bash", "-l"]
 

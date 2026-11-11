@@ -52,6 +52,9 @@ RUN printf '%s\n' \
     > /entrypoint.sh \
  && chmod +x /entrypoint.sh \
  && test -x /entrypoint.sh
-ENTRYPOINT ["/entrypoint.sh"]
+# Use the bash from the realised Nix profile; the minimal base image does not
+# guarantee a working /bin/bash, and a missing interpreter makes the kernel
+# report the script itself as "No such file or directory".
+ENTRYPOINT ["/nix/var/nix/profiles/devshell/bin/bash", "/entrypoint.sh"]
 CMD ["bash", "-l"]
 

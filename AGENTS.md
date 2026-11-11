@@ -34,8 +34,14 @@ nix develop --profile /nix/var/nix/profiles/devshell --command true
 ```
 
 This pulls the whole closure into the image *and* pins it with a profile so it
-survives `nix gc`. Container start-up then does no evaluation or network I/O.
-The `ENTRYPOINT` runs every command through that pinned profile.
+survives `nix gc`. The build then runs `nix print-dev-env` into
+`/opt/env/dev-shell-env.sh`, and the `ENTRYPOINT` (`/entrypoint.sh`) just
+sources that file — no flake evaluation at start-up, which `nix develop` would
+do on every run. Gotchas, all hit in practice: `nixos/nix` has no `/bin/bash`
+(the Dockerfile symlinks it, else the shebang fails with "No such file or
+directory"); the devshell profile is a JSON file, not a directory; the dumped
+script already runs the `shellHook`; and the hook clobbers `$@`, so the
+entrypoint saves the command first.
 
 Consequence: the `shellHook` executes during `docker build`, not only on
 interactive entry. Anything it writes (the `npm` install, the skills symlink)

@@ -35,26 +35,25 @@ ENV OPENROUTER_API_KEY=""
 
 # Load the pre-computed dev-shell environment instead of invoking `nix develop`
 # at runtime. This avoids per-start flake evaluation and store realisation.
-RUN printf '%s\n' \
+#
+# Notes, each of which caused a real failure:
+# - nixos/nix has no /bin/bash (only /bin/sh -> bash), so a `#!/bin/bash`
+#   shebang fails with "No such file or directory". Symlink it.
+# - The devshell profile is a JSON env file, not a directory with bin/.
+# - print-dev-env output already ends with `eval "$shellHook"`; don't re-run.
+# - The shellHook runs `set -- *.pub`, clobbering positional args, so the
+#   command is saved before sourcing.
+# - No `set -euo pipefail`: `nix develop` doesn't run hooks under it either.
+RUN ln -sf "$(readlink -f /bin/sh)" /bin/bash \
+ && printf '%s\n' \
     '#!/bin/bash' \
-    'set -euo pipefail' \
-    '' \
-    '# Load PATH and all environment variables captured at image build time by' \
-    '# `nix print-dev-env`. This replaces `nix develop` at runtime and avoids' \
-    '# per-container Nix evaluation or store realisation.' \
+    'cmd=("$@")' \
+    'set --' \
     'source /opt/env/dev-shell-env.sh' \
-    '' \
-    '# Re-run the mkShell shellHook so git identity/signing, the skills symlink,' \
-    '# UV_PYTHON, and other runtime setup still happen on every entry.' \
-    '[ -n "${shellHook:-}" ] && eval "$shellHook"' \
-    '' \
-    'exec "$@"' \
+    'exec "${cmd[@]}"' \
     > /entrypoint.sh \
  && chmod +x /entrypoint.sh \
- && test -x /entrypoint.sh
-# Use the bash from the realised Nix profile; the minimal base image does not
-# guarantee a working /bin/bash, and a missing interpreter makes the kernel
-# report the script itself as "No such file or directory".
-ENTRYPOINT ["/nix/var/nix/profiles/devshell/bin/bash", "/entrypoint.sh"]
+ && /entrypoint.sh true
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["bash", "-l"]
 

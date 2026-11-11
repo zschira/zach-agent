@@ -6,15 +6,16 @@ Context for agents working on this repository.
 
 A sandboxed environment for running [`pi-coding-agent`](https://pi.dev) inside a
 container. There is no application code here — the repo *is* the environment
-definition. Two files do all the work:
+definition. Four parts do the work:
 
 | File | Role |
 |---|---|
-| `flake.nix` | Declares the toolchain, the Python environment, the pinned agent skill repos, and git identity/signing |
-| `Dockerfile` | Nix-based image that pre-realises the dev shell into a profile |
-| `Makefile` | `make build` / `make develop`; bridges host state (git identity, keys) into the container |
+| `docker/flake.nix` | Declares the toolchain, Python environment, pinned agent skill repos, and dev-shell config for the image |
+| `docker/Dockerfile` | Nix-based image that pre-realises the dev shell into a profile |
+| `flake.nix` | Nix flake app that runs the prebuilt container from anywhere |
+| `.github/workflows/docker.yml` | Builds the image and pushes it to GHCR |
 
-`flake.lock` pins every input and should be committed.
+`flake.lock` and `docker/flake.lock` pin inputs and should be committed.
 
 ## Design decisions
 
@@ -59,35 +60,55 @@ Note the current `ENV OPENROUTER_API_KEY=""` means the variable is always
 
 ## Build and run
 
-Use the `Makefile`; it wires up the mounts and identity that raw `docker run`
-would otherwise need spelled out.
+### Run the prebuilt image from anywhere
+
+The root flake exposes a launcher app. It resolves the workspace path, reads the
+workspace's git identity, and runs the matching GHCR image:
 
 ```bash
-make lock                              # pin flake inputs; commit flake.lock
-make build                             # docker build -t zach-agent .
-make develop WORKSPACE=../some-project # interactive sandbox
+nix run github:OWNER/zach-agent -- ../some-project
 ```
 
-`WORKSPACE` is **required** and has no default — the sandbox should expose a
-chosen directory, and defaulting to the cwd risks mounting this repo into the
-agent. Relative paths are resolved with `$(abspath ...)` because Docker rejects
-relative bind-mount sources.
+Install once to avoid re-evaluating:
 
-Overridable: `IMAGE`, `AGENT_VOLUME`, `AGENT_KEYS`, `GIT_AUTHOR_NAME`,
-`GIT_AUTHOR_EMAIL`.
+```bash
+nix profile install github:OWNER/zach-agent
+zach-agent ../some-project
+```
 
-What `make develop` mounts and injects:
+`OWNER` is your GitHub username or organization. The launcher defaults to
+`ghcr.io/OWNER/zach-agent`, but you can override the whole reference with
+`ZACH_AGENT_IMAGE`.
+
+The launcher mounts and injects the same runtime state as the old Makefile:
 
 | Flag | Purpose |
 |---|---|
-| `-v $(WORKSPACE_ABS):/workspace` | The project being worked on |
+| `-v <workspace>:/workspace` | The project being worked on |
 | `-v pi-agent-home:/root/.pi/agent` | Pi's own state (sessions, history), persists across `--rm` |
-| `-v $(AGENT_KEYS):/run/agent-keys:ro` | Agent signing key, read-only |
+| `-v pi-agent-uv-env:/opt/uv-env` | Per-image uv venv, kept out of the bind-mounted project |
+| `-v pi-agent-uv-cache:/opt/uv-cache` | uv's package cache, persisted across runs |
+| `-v $AGENT_KEYS:/run/agent-keys:ro` | Agent signing key, read-only (`~/.agent-keys` by default) |
 | `-e OPENROUTER_API_KEY` | Forwarded from the host shell (no `=`) |
 | `-e GIT_AUTHOR_NAME/EMAIL` | Read from the workspace repo's git config |
 
-Env pass-through relies on `nix develop` being impure by default; if
-`--ignore-environment` is ever added, `--keep` entries become necessary.
+### Image versions
+
+Each push to `main` builds and tags the image with the commit SHA. If you run
+from a locked flake reference such as `github:OWNER/zach-agent`, `self.rev` is
+that same SHA, so the launcher pulls the exact image built from that commit. If
+you run from a dirty local tree, it falls back to `latest`.
+
+### Build the image locally
+
+To work on the image itself:
+
+```bash
+nix flake update --flake ./docker   # update flake.lock inputs
+docker build ./docker
+```
+
+Or let GitHub Actions build and push it after you push.
 
 Note `pi-agent-home` is distinct from `ZACH_AGENT_HOME` (`/workspace/.agent`):
 the former is Pi's state in a named volume, the latter lands in your project and
@@ -101,10 +122,11 @@ Pi discovers any directory containing a `SKILL.md`, **recursively**, and honours
 the Agent Skills locations `~/.agents/skills/` and `.agents/skills/`. There is
 no skills-directory environment variable that Pi reads.
 
-The `pi-skills` derivation collects every pinned repo into a single store path
-under its `skillSources` key. The `shellHook` then symlinks that path to
-`~/.agents/skills/nix`. Because discovery is recursive, a repo that bundles many
-skills — or nests them, as Dagster does — can be dropped in whole.
+The `pi-skills` derivation in `docker/flake.nix` collects every pinned repo
+into a single store path under its `skillSources` key. The container's
+`shellHook` then symlinks that path to `~/.agents/skills/nix`. Because discovery
+is recursive, a repo that bundles many skills — or nests them, as Dagster does —
+can be dropped in whole.
 
 ### Adding a skill repo
 
@@ -131,7 +153,7 @@ skillSources = {
 `SKILL.md` anywhere.
 
 Only public `github:` repos are supported as written. Private repos need an
-`access-tokens` entry or an SSH input, which complicates `docker build`
+`access-tokens` entry or an SSH input, which complicates the image build
 considerably.
 
 ### Currently pinned
@@ -146,7 +168,7 @@ Dagster is pinned to `release-stable` because that is what all upstream install
 paths deliver; `master` carries unreleased content. Its plugin directories have
 no top-level `SKILL.md`, which is why recursive discovery matters.
 
-Updating is explicit: `nix flake update dagster-skills`.
+Updating is explicit: `nix flake update --flake ./docker dagster-skills`.
 
 This vendors entire repos, so the agent sees every skill they contain — more
 than strictly needed. This diverges from the upstream per-skill workflow
@@ -172,12 +194,12 @@ variables**, which outrank *every* config file. A mounted repo's local
 
 ### Where the identity comes from
 
-`make develop` reads it from the host with `git -C $(WORKSPACE_ABS) config --get
-user.name`. Resolving *inside the workspace repo* means per-repo overrides and
-`includeIf "gitdir:..."` conditional includes are honoured — point the sandbox at
-a work repo and it picks up the work address automatically. The target fails
-before starting Docker if neither config nor an explicit override supplies a
-value.
+The `zach-agent` launcher reads it from the host with `git -C <workspace>
+config --get user.name`. Resolving *inside the workspace repo* means per-repo
+overrides and `includeIf "gitdir:..."` conditional includes are honoured — point
+the sandbox at a work repo and it picks up the work address automatically. The
+launcher exits before starting Docker if neither config nor an explicit
+override supplies a value.
 
 ### Signing key
 
@@ -357,8 +379,8 @@ Implications worth knowing:
 - **Container runs as root**, so files written to the bind-mounted `/workspace`
   are root-owned on the host. `--user` breaks writes to `/nix` and `/opt/npm`; a
   non-root user in the `Dockerfile` is the cleaner fix. Note that moving off root
-  means updating `/root/.pi/agent` in the `Makefile` and the `HOME` fallbacks in
-  the `shellHook` together.
+  means updating `/root/.pi/agent` in the launcher script (or the GitHub
+  Actions workflow) and the `HOME` fallbacks in the `shellHook` together.
 - **Conda/`pixi` projects are unsupported.** See "Why not `pixi`" above.
 - **`HOME` must agree between build and run** for the `~/.agents/skills/nix`
   symlink to be where Pi looks. The `shellHook` falls back to `/root`, matching

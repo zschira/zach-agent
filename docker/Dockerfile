@@ -20,7 +20,7 @@ ENV SHELL=/bin/bash
 # The flake lives here; the actual project is bind-mounted at /workspace.
 WORKDIR /opt/env
 COPY flake.nix ./
-COPY flake.loc[k] ./
+COPY flake.lock ./
 
 # Realise the dev shell closure and pin it with a profile so it survives `nix gc`
 # and so container start-up does no network/eval work.

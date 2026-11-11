@@ -292,6 +292,16 @@
 
             echo "  skills  $(find -L "$skills_dir" -name SKILL.md | wc -l) found in $skills_dir"
 
+            # Install sandbox instructions into Pi's agent directory so they
+            # are available in every workspace, not only when the bind-mounted
+            # project happens to contain an AGENTS.md. Refreshed each entry so
+            # an updated image replaces the file even when /root/.pi/agent is on
+            # a persisted named volume.
+            agent_dir="''${PI_CODING_AGENT_DIR:-''${HOME:-/root}/.pi/agent}"
+            mkdir -p "$agent_dir"
+            cp -f /opt/env/AGENTS.md "$agent_dir/AGENTS.md"
+            echo "  agents  $agent_dir/AGENTS.md"
+
             # The launcher may override this with a per-project path.
             mkdir -p "$UV_PROJECT_ENVIRONMENT"
           '';

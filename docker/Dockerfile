@@ -21,6 +21,9 @@ ENV SHELL=/bin/bash
 WORKDIR /opt/env
 COPY docker/flake.nix ./
 COPY docker/flake.lock ./
+# Copy sandbox instructions into the image so they can be installed into the
+# agent config directory on every container start.
+COPY AGENTS.md ./
 
 # Realise the dev shell closure and pin it with a profile so it survives `nix gc`
 # and so container start-up does no network/eval work.

@@ -1,0 +1,79 @@
+{
+  "nodes": {
+    "agent-skills": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1794275069,
+        "narHash": "sha256-xJGH9GZFEbI8eE/2EKc7e5244YPggckLqTwRzzDtF3Q=",
+        "owner": "catalyst-cooperative",
+        "repo": "agent-skills",
+        "rev": "8334fe3a725fc918a5c60513be24d9a04d7ade14",
+        "type": "github"
+      },
+      "original": {
+        "owner": "catalyst-cooperative",
+        "repo": "agent-skills",
+        "type": "github"
+      }
+    },
+    "anthropic-skills": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1794004348,
+        "narHash": "sha256-dRCZrNarCCJFuvATgfW6qmwwVS5HGFXNVGOhbVZd7LA=",
+        "owner": "anthropics",
+        "repo": "skills",
+        "rev": "2c5958ecac7cee2b583967a2c4981d0f4a75c579",
+        "type": "github"
+      },
+      "original": {
+        "owner": "anthropics",
+        "repo": "skills",
+        "type": "github"
+      }
+    },
+    "dagster-skills": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1793903607,
+        "narHash": "sha256-bl6xOiLe+hfejZshbslDk94VBBykA1g2VN12kZUkziY=",
+        "owner": "dagster-io",
+        "repo": "skills",
+        "rev": "71a6bb111b54d905dec3fef29203c4354bdba2b6",
+        "type": "github"
+      },
+      "original": {
+        "owner": "dagster-io",
+        "ref": "release-stable",
+        "repo": "skills",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1767313136,
+        "narHash": "sha256-16KkgfdYqjaeRGBaYsNrhPRRENs0qzkQVUooNHtoy2w=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "ac62194c3917d5f474c1a844b6fd6da2db95077d",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-25.05",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "agent-skills": "agent-skills",
+        "anthropic-skills": "anthropic-skills",
+        "dagster-skills": "dagster-skills",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}

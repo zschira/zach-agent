@@ -51,6 +51,10 @@
 
               AGENT_KEYS="''${AGENT_KEYS:-$HOME/.agent-keys}"
 
+              env_name="''${ZACH_AGENT_UV_ENV_NAME:-$(basename "$workspace_abs")}"
+              env_name="$(printf '%s' "$env_name" | tr '[:upper:]' '[:lower:]' | tr -c '[:alnum:]_-' '-')"
+              UV_PROJECT_ENVIRONMENT="/opt/uv-envs/$env_name"
+
               GIT_AUTHOR_NAME=$(git -C "$workspace_abs" config --get user.name || true)
               GIT_AUTHOR_EMAIL=$(git -C "$workspace_abs" config --get user.email || true)
 
@@ -69,11 +73,12 @@
               exec docker run --rm -it \
                 -v "$workspace_abs:/workspace" \
                 -v pi-agent-home:/root/.pi/agent \
-                -v pi-agent-uv-env:/opt/uv-env \
+                -v pi-agent-uv-envs:/opt/uv-envs \
                 -v pi-agent-uv-cache:/opt/uv-cache \
                 -e OPENROUTER_API_KEY \
                 -e GIT_AUTHOR_NAME="$GIT_AUTHOR_NAME" \
                 -e GIT_AUTHOR_EMAIL="$GIT_AUTHOR_EMAIL" \
+                -e UV_PROJECT_ENVIRONMENT="$UV_PROJECT_ENVIRONMENT" \
                 "''${key_mount[@]}" \
                 "$IMAGE" "$@"
             '';

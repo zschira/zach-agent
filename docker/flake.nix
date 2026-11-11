@@ -173,9 +173,10 @@
             # hardcodes absolute paths (interpreter symlink, pyvenv.cfg `home`,
             # script shebangs), so a host-created /workspace/.venv is not usable
             # here — and `uv sync` would delete and recreate it, breaking manual
-            # development on the host. Mounted as a named volume by
-            # `make develop` so it survives between runs.
-            UV_PROJECT_ENVIRONMENT = "/opt/uv-env";
+            # development on the host. The launcher sets a per-project
+            # UV_PROJECT_ENVIRONMENT under /opt/uv-envs; this default only applies
+            # when the image is run outside the launcher.
+            UV_PROJECT_ENVIRONMENT = "/opt/uv-envs/default";
 
             # Package downloads are cached here; put it on a volume too,
             # otherwise every run re-fetches every wheel.
@@ -278,6 +279,9 @@
             ln -sfn "$PI_SKILLS_STORE" "$skills_dir/nix"
 
             echo "  skills  $(find -L "$skills_dir" -name SKILL.md | wc -l) found in $skills_dir"
+
+            # The launcher may override this with a per-project path.
+            mkdir -p "$UV_PROJECT_ENVIRONMENT"
           '';
         };
       });

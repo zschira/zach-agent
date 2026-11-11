@@ -19,8 +19,8 @@ ENV SHELL=/bin/bash
 
 # The flake lives here; the actual project is bind-mounted at /workspace.
 WORKDIR /opt/env
-COPY flake.nix ./
-COPY flake.lock ./
+COPY docker/flake.nix ./
+COPY docker/flake.lock ./
 
 # Realise the dev shell closure and pin it with a profile so it survives `nix gc`
 # and so container start-up does no network/eval work.
@@ -35,7 +35,7 @@ ENV OPENROUTER_API_KEY=""
 
 # Load the pre-computed dev-shell environment instead of invoking `nix develop`
 # at runtime. This avoids per-start flake evaluation and store realisation.
-COPY entrypoint.sh /opt/env/entrypoint.sh
+COPY docker/entrypoint.sh /opt/env/entrypoint.sh
 RUN chmod +x /opt/env/entrypoint.sh
 ENTRYPOINT ["/opt/env/entrypoint.sh"]
 CMD ["bash", "-l"]

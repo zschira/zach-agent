@@ -253,6 +253,9 @@
 
           shellHook = ''
             export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
+            # nix python packages leak their py3.12 site-packages into PYTHONPATH,
+            # which shadows uv/pixi venvs (eg. py3.13) and breaks them.
+            unset PYTHONPATH
             mkdir -p "$ZACH_AGENT_HOME" "$NPM_CONFIG_PREFIX"
 
             # --- nix-ld dynamic linker shim ----------------------------------

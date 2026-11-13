@@ -123,22 +123,6 @@
             curl
             tree
 
-            # Python for skills. Skills declare deps as prose in their
-            # `compatibility` frontmatter (there is no machine-readable
-            # manifest), so this list is maintained by hand.
-            #   catalyst-cooperative/pudl: polars, pandas+s3fs
-            #   anthropic/pdf:             pypdf, pdfplumber, reportlab, pandas
-            (python312.withPackages (ps: with ps; [
-              polars
-              pandas
-              s3fs
-              pyarrow
-              requests
-              pypdf
-              pdfplumber
-              reportlab
-            ]))
-
             # CLI tools the pdf skill shells out to
             poppler-utils # pdftotext, pdfimages
             qpdf
@@ -166,7 +150,7 @@
 
             # Shared library search path for the *nix* dynamic linker. Needed
             # so uv-installed manylinux wheels (e.g. duckdb) loaded by the
-            # nix-built python can find libstdc++ and friends. The nix-ld
+            # uv-managed python can find libstdc++ and friends. The nix-ld
             # shim uses NIX_LD_LIBRARY_PATH; this duplicates it for LD_LIBRARY_PATH
             # so regular glibc-loaded binaries see the same libraries.
             LD_LIBRARY_PATH = with pkgs; lib.makeLibraryPath [
@@ -190,6 +174,9 @@
             # nix-ld provides a /lib64/ld-linux-x86-64.so.2 shim, so uv can
             # download managed CPython builds and precompiled manylinux wheels.
             UV_PYTHON_DOWNLOADS = "automatic";
+            # Managed interpreters live in the image (not ~/.local) so the agent
+            # venv's python symlink stays valid.
+            UV_PYTHON_INSTALL_DIR = "/opt/uv-python";
 
             # Real glibc dynamic loader used by the nix-ld shim.
             NIX_LD = "${pkgs.glibc}/lib/ld-linux-x86-64.so.2";
@@ -227,9 +214,11 @@
 
           shellHook = ''
             export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
-            # nix python packages leak their py3.12 site-packages into PYTHONPATH,
-            # which shadows uv venvs and breaks them.
-            unset PYTHONPATH
+            # Agent/skills venv, built from docker/pyproject.toml at image build
+            # time (absent while the build's own shellHook first runs).
+            if [ -d /opt/agent-venv/bin ]; then
+              export PATH="/opt/agent-venv/bin:$PATH"
+            fi
             mkdir -p "$ZACH_AGENT_HOME" "$NPM_CONFIG_PREFIX"
 
             # --- nix-ld dynamic linker shim ----------------------------------
@@ -253,7 +242,7 @@
             echo "  git     $(git --version | cut -d' ' -f3)"
             echo "  rg      $(rg --version | head -n1 | cut -d' ' -f2)"
             echo "  duckdb  $(duckdb --version | cut -d' ' -f1)"
-            echo "  python  $(python3 --version | cut -d' ' -f2) (skills), uv $(uv --version | cut -d' ' -f2)"
+            echo "  python  $(python3 --version 2>/dev/null | cut -d' ' -f2 || echo none) (skills), uv $(uv --version | cut -d' ' -f2)"
 
             # --- git identity ------------------------------------------------
             # GIT_AUTHOR_* are injected by `make develop`, read from the host's

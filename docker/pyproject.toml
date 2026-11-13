@@ -1,0 +1,24 @@
+[project]
+name = "zach-agent-env"
+version = "0.0.0"
+description = "Python environment for the agent and its skills (not a mounted project)"
+# Pinned to one minor so the managed interpreter (and lock) is reproducible.
+requires-python = ">=3.12,<3.13"
+# Skills declare deps as prose in their `compatibility` frontmatter (there is
+# no machine-readable manifest), so this list is maintained by hand.
+#   catalyst-cooperative/pudl: polars, pandas + s3fs
+#   anthropic/pdf:             pypdf, pdfplumber, reportlab, pandas
+dependencies = [
+  "polars",
+  "pandas",
+  "s3fs",
+  "pyarrow",
+  "requests",
+  "pypdf",
+  "pdfplumber",
+  "reportlab",
+]
+
+[tool.uv]
+# Dependencies only; there is no package to build or install.
+package = false

@@ -10,7 +10,8 @@ definition. Four parts do the work:
 
 | File | Role |
 |---|---|
-| `docker/flake.nix` | Declares the toolchain, Python environment, pinned agent skill repos, and dev-shell config for the image |
+| `docker/flake.nix` | Declares the toolchain, pinned agent skill repos, and dev-shell config for the image |
+| `docker/pyproject.toml`, `docker/uv.lock` | Python dependencies of the agent and its skills, built into `/opt/agent-venv` |
 | `docker/Dockerfile` | Nix-based image that pre-realises the dev shell into a profile |
 | `flake.nix` | Nix flake app that runs the prebuilt container from anywhere |
 | `.github/workflows/docker.yml` | Builds the image and pushes it to GHCR |
@@ -307,9 +308,9 @@ configured here.
 **Skills have no machine-readable dependency manifest.**
 provides only a free-form `compatibility` string in the frontmatter (max 500
 chars, advisory, nothing reads it). Dependencies must be read out of each
-`SKILL.md` by hand and translated into the flake.
+`SKILL.md` by hand and translated into `docker/pyproject.toml`.
 
-The current `python312.withPackages` list is maintained manually and traces to:
+The `dependencies` in `docker/pyproject.toml` are maintained manually and trace to:
 
 - `catalyst-cooperative/pudl` → `polars`, `pandas` + `s3fs`
 - `anthropic/pdf` → `pypdf`, `pdfplumber`, `reportlab`, `pandas`
@@ -318,20 +319,24 @@ Plus `poppler-utils` (`pdftotext`, `pdfimages`) and `qpdf`, which the PDF skill
 shells out to. `jq` and the `duckdb` CLI are also used heavily by the PUDL
 skill.
 
-If you add a skill, read its `compatibility` field and update both the package
-list and the comment above it.
+If you add a skill, read its `compatibility` field and add the package with
+`uv add --project docker <pkg>` (updates `uv.lock`) and update the comment in
+`pyproject.toml`.
 
 ### Scope: toolchain vs. project deps
 
 This Python environment is for **the agent and its skills** — a fixed set, baked
-into the image, works offline. Dependencies of an arbitrary project mounted at
+into the image at build time with `uv sync --frozen` into `/opt/agent-venv`
+(first on `PATH`; interpreter in `/opt/uv-python`), works offline. The
+Dockerfile ends the build with an import smoke test, since a manylinux wheel
+missing a library fails at import, not install. Python itself comes from `uv`,
+not nixpkgs; `requires-python` pins the minor version. Dependencies of an arbitrary project mounted at
 `/workspace` are a separate concern, handled by `uv` resolving at
 runtime (which requires network).
 
-For reference, the ecosystem has not standardised: `poetry2nix` is unmaintained
-and its author now recommends `uv`; `mach-nix` is dead; `uv2nix` +
-`pyproject.nix` is the current direction for lockfile-driven environments;
-`withPackages` remains correct for small fixed sets like this one.
+Don't set `VIRTUAL_ENV` or point `UV_PROJECT_ENVIRONMENT` at the agent venv:
+project venvs live under `/opt/uv-envs/<project>` and are separate. A bare
+`python3` in `/workspace` does see the agent packages.
 
 ### Dynamic linker shim (`nix-ld`)
 
@@ -357,9 +362,8 @@ prebuilt wheels now work:
 | `uv python install` | Yes for versions already in the shell; downloads are allowed but may still fail for versions needing libs not in the search path |
 
 `UV_PYTHON_DOWNLOADS = "automatic"` is set so `uv` can fetch portable CPython
-builds, which the `nix-ld` shim can run. Python 3.12 remains the default
-`python3` interpreter and powers the agent's skills; project interpreters come
-from `uv`.
+builds, which the `nix-ld` shim can run. The agent's skills run in `/opt/agent-venv` (Python 3.12); project interpreters
+come from `uv`.
 
 ### The host `.venv` conflict
 
@@ -414,8 +418,6 @@ Implications worth knowing:
 
 ## Unverified
 
-- Whether every Python attribute name resolves in nixpkgs (`pypdf` is the most
-  likely to differ — nixpkgs historically carried `PyPDF2`). `nix develop`
-  fails fast and clearly if one is wrong.
-- `markitdown[pdf,docx]`, listed as optional by the PUDL skill, is probably not
-  in nixpkgs and is currently omitted.
+- Whether the agent venv builds and imports cleanly under `nix-ld` in the
+  actual image (the lock resolves, but the build hasn't been run).
+- `markitdown[pdf,docx]`, listed as optional by the PUDL skill, is currently omitted.

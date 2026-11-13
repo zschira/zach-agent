@@ -325,7 +325,7 @@ list and the comment above it.
 
 This Python environment is for **the agent and its skills** — a fixed set, baked
 into the image, works offline. Dependencies of an arbitrary project mounted at
-`/workspace` are a separate concern, handled by `uv` and `pixi` resolving at
+`/workspace` are a separate concern, handled by `uv` resolving at
 runtime (which requires network).
 
 For reference, the ecosystem has not standardised: `poetry2nix` is unmaintained
@@ -339,11 +339,10 @@ The image is non-FHS, so prebuilt Linux binaries that hardcode
 `/lib64/ld-linux-x86-64.so.2` cannot start out of the box. The shellHook
 installs `nix-ld` as a shim at `/lib64/ld-linux-x86-64.so.2` and exports
 `NIX_LD` (the real glibc loader) plus `NIX_LD_LIBRARY_PATH`. This lets
-`uv`-downloaded managed Pythons, manylinux wheels, and precompiled hook
-binaries run without patching.
+`uv`-downloaded managed Pythons and manylinux wheels run without patching.
 
 In addition, `LD_LIBRARY_PATH` is exported with the same library list so the
-nix-built `python3.13` can resolve extension modules (e.g. `duckdb`) that need
+nix-built python can resolve extension modules (e.g. `duckdb`) that need
 `libstdc++.so.6`.
 
 ### `uv`
@@ -359,32 +358,8 @@ prebuilt wheels now work:
 
 `UV_PYTHON_DOWNLOADS = "automatic"` is set so `uv` can fetch portable CPython
 builds, which the `nix-ld` shim can run. Python 3.12 remains the default
-`python3` interpreter and powers the agent's skills; a `python3.13` interpreter
-is also exposed on `PATH` so `uv` can resolve projects requiring 3.13 without
-downloads.
-
-### `pixi`
-
-`pixi` is included and supported via the same `nix-ld` shim. Conda-forge
-packages ship their own interpreter, so they rely on `/lib64/ld-linux-x86-64.so.2`
-just like manylinux wheels; `nix-ld` handles that.
-
-The `shellHook` also redirects `.pixi/` out of the bind-mounted project and into
-`/opt/pixi-envs/$ZACH_AGENT_PROJECT_ENV_NAME` when the launcher sets
-`ZACH_AGENT_PROJECT_ENV_NAME`, avoiding the same host/container `.venv` conflict.
-
-### Project quality tooling
-
-The dev shell also includes nix-built copies of `ruff`, `pre-commit`, `typos`,
-and `go`. These are on `PATH` independently of any mounted-project venv, so:
-
-- `pre-commit run` works immediately, even before `uv sync`.
-- `repo: local` / `language: system` hooks can use the nix binaries instead of
-  downloading their own.
-- Golang-based hooks such as `trufflehog` can build.
-
-If a project's `.pre-commit-config.yaml` downloads hooks instead, those
-precompiled binaries are handled by the `nix-ld` shim.
+`python3` interpreter and powers the agent's skills; project interpreters come
+from `uv`.
 
 ### The host `.venv` conflict
 

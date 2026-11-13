@@ -98,14 +98,6 @@
       });
 
       devShells = forAllSystems (pkgs:
-        let
-          # Expose python3.13 for uv-managed projects without shadowing the
-          # python3.12 toolchain used by the agent skills.
-          python3-uv = pkgs.runCommand "python3.13-for-uv" { } ''
-            mkdir -p $out/bin
-            ln -s ${pkgs.python313}/bin/python3.13 $out/bin/python3.13
-          '';
-        in
         {
           default = pkgs.mkShell {
           name = "zach-agent";
@@ -151,27 +143,9 @@
             poppler-utils # pdftotext, pdfimages
             qpdf
 
-            # Project-quality tooling for mounted repos. Nix-built copies are
-            # FHS-independent and available on PATH even before a uv venv is
-            # synced. They also let pre-commit configs use `repo: local` /
-            # `language: system` as a fallback when uv-downloaded hook binaries
-            # would otherwise need the dynamic-linker shim.
-            ruff
-            pre-commit
-            typos
-
-            # Some pre-commit hooks (e.g. trufflehog) are language: golang.
-            go
-
-            # Python interpreter for uv-managed projects. Deliberately exposed
-            # only as python3.13 so the python3/python3.12 skills toolchain is
-            # not shadowed.
-            python3-uv
-
-            # Package managers for mounted projects. `nix-ld` lets their
-            # downloaded prebuilt binaries run in this non-FHS image.
+            # uv for mounted projects. `nix-ld` lets its downloaded Pythons and
+            # prebuilt wheels run in this non-FHS image.
             uv
-            pixi
             nix-ld
 
             # pi-coding-agent runtime
@@ -192,7 +166,7 @@
 
             # Shared library search path for the *nix* dynamic linker. Needed
             # so uv-installed manylinux wheels (e.g. duckdb) loaded by the
-            # nix-built python3.13 can find libstdc++ and friends. The nix-ld
+            # nix-built python can find libstdc++ and friends. The nix-ld
             # shim uses NIX_LD_LIBRARY_PATH; this duplicates it for LD_LIBRARY_PATH
             # so regular glibc-loaded binaries see the same libraries.
             LD_LIBRARY_PATH = with pkgs; lib.makeLibraryPath [
@@ -254,34 +228,17 @@
           shellHook = ''
             export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
             # nix python packages leak their py3.12 site-packages into PYTHONPATH,
-            # which shadows uv/pixi venvs (eg. py3.13) and breaks them.
+            # which shadows uv venvs and breaks them.
             unset PYTHONPATH
             mkdir -p "$ZACH_AGENT_HOME" "$NPM_CONFIG_PREFIX"
 
             # --- nix-ld dynamic linker shim ----------------------------------
             # Allows prebuilt Linux binaries (uv-downloaded Pythons, manylinux
-            # wheels, conda-forge packages) to run despite the image lacking
+            # wheels) to run despite the image lacking
             # /lib64/ld-linux-x86-64.so.2 and /usr/lib.
             mkdir -p /lib64
             ln -sfn "${pkgs.nix-ld}/bin/nix-ld" /lib64/ld-linux-x86-64.so.2
 
-            # --- pixi environment isolation ----------------------------------
-            # pixi always writes project environments to .pixi/ inside the
-            # project. Redirect that directory to a named volume so the heavy
-            # env files stay out of the host bind-mount.
-            if [ -n "''${ZACH_AGENT_PROJECT_ENV_NAME:-}" ]; then
-              pixi_env_dir="/opt/pixi-envs/''${ZACH_AGENT_PROJECT_ENV_NAME}"
-              mkdir -p "$pixi_env_dir"
-              if [ -f /workspace/pixi.toml ] || { [ -f /workspace/pyproject.toml ] && grep -q '^\[tool\.pixi' /workspace/pyproject.toml; }; then
-                if [ -e /workspace/.pixi ] && [ ! -L /workspace/.pixi ]; then
-                  echo "warning: /workspace/.pixi is a regular directory; leaving it host-visible" >&2
-                else
-                  mkdir -p "$pixi_env_dir/.pixi"
-                  ln -sfn "$pixi_env_dir/.pixi" /workspace/.pixi
-                  echo "  pixi    $pixi_env_dir/.pixi"
-                fi
-              fi
-            fi
 
             # Bootstrap the agent on first use (swap for the vendored package
             # above once the hashes are pinned).
@@ -296,7 +253,7 @@
             echo "  git     $(git --version | cut -d' ' -f3)"
             echo "  rg      $(rg --version | head -n1 | cut -d' ' -f2)"
             echo "  duckdb  $(duckdb --version | cut -d' ' -f1)"
-            echo "  python  $(python3 --version | cut -d' ' -f2) skills, $(python3.13 --version 2>/dev/null | cut -d' ' -f2 || echo 'none') uv"
+            echo "  python  $(python3 --version | cut -d' ' -f2) (skills), uv $(uv --version | cut -d' ' -f2)"
 
             # --- git identity ------------------------------------------------
             # GIT_AUTHOR_* are injected by `make develop`, read from the host's

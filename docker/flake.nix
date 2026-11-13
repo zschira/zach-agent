@@ -151,16 +151,28 @@
             poppler-utils # pdftotext, pdfimages
             qpdf
 
+            # Project-quality tooling for mounted repos. Nix-built copies are
+            # FHS-independent and available on PATH even before a uv venv is
+            # synced. They also let pre-commit configs use `repo: local` /
+            # `language: system` as a fallback when uv-downloaded hook binaries
+            # would otherwise need the dynamic-linker shim.
+            ruff
+            pre-commit
+            typos
+
+            # Some pre-commit hooks (e.g. trufflehog) are language: golang.
+            go
+
             # Python interpreter for uv-managed projects. Deliberately exposed
             # only as python3.13 so the python3/python3.12 skills toolchain is
             # not shadowed.
             python3-uv
 
-            # Package manager for mounted projects. See AGENTS.md for the
-            # dynamic-linker and host-.venv caveats. `pixi` is deliberately
-            # absent: conda-forge packages ship their own interpreter, which
-            # needs an FHS dynamic linker this image does not provide.
+            # Package managers for mounted projects. `nix-ld` lets their
+            # downloaded prebuilt binaries run in this non-FHS image.
             uv
+            pixi
+            nix-ld
 
             # pi-coding-agent runtime
             nodejs_22
@@ -178,11 +190,52 @@
             # Host ~/.agent-keys, bind-mounted read-only by `make develop`.
             AGENT_KEYS_DIR = "/run/agent-keys";
 
-            # uv's managed CPython builds are prebuilt for generic Linux and
-            # cannot start here (no /lib64/ld-linux-x86-64.so.2). Keep downloads
-            # disabled and rely on the python3.13 interpreter exposed via
-            # python3-uv (plus the existing python3.12 toolchain) on PATH.
-            UV_PYTHON_DOWNLOADS = "never";
+            # Shared library search path for the *nix* dynamic linker. Needed
+            # so uv-installed manylinux wheels (e.g. duckdb) loaded by the
+            # nix-built python3.13 can find libstdc++ and friends. The nix-ld
+            # shim uses NIX_LD_LIBRARY_PATH; this duplicates it for LD_LIBRARY_PATH
+            # so regular glibc-loaded binaries see the same libraries.
+            LD_LIBRARY_PATH = with pkgs; lib.makeLibraryPath [
+              stdenv.cc.cc.lib
+              zlib
+              zstd
+              openssl
+              libffi
+              ncurses
+              readline
+              sqlite
+              xz
+              bzip2
+              libuuid
+              curl
+              libxml2
+              libxslt
+              icu
+            ];
+
+            # nix-ld provides a /lib64/ld-linux-x86-64.so.2 shim, so uv can
+            # download managed CPython builds and precompiled manylinux wheels.
+            UV_PYTHON_DOWNLOADS = "automatic";
+
+            # Real glibc dynamic loader used by the nix-ld shim.
+            NIX_LD = "${pkgs.glibc}/lib/ld-linux-x86-64.so.2";
+            NIX_LD_LIBRARY_PATH = with pkgs; lib.makeLibraryPath [
+              stdenv.cc.cc.lib
+              zlib
+              zstd
+              openssl
+              libffi
+              ncurses
+              readline
+              sqlite
+              xz
+              bzip2
+              libuuid
+              curl
+              libxml2
+              libxslt
+              icu
+            ];
 
             # Keep the container's venv OUT of the bind-mounted project. A venv
             # hardcodes absolute paths (interpreter symlink, pyvenv.cfg `home`,
@@ -201,6 +254,31 @@
           shellHook = ''
             export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
             mkdir -p "$ZACH_AGENT_HOME" "$NPM_CONFIG_PREFIX"
+
+            # --- nix-ld dynamic linker shim ----------------------------------
+            # Allows prebuilt Linux binaries (uv-downloaded Pythons, manylinux
+            # wheels, conda-forge packages) to run despite the image lacking
+            # /lib64/ld-linux-x86-64.so.2 and /usr/lib.
+            mkdir -p /lib64
+            ln -sfn "${pkgs.nix-ld}/bin/nix-ld" /lib64/ld-linux-x86-64.so.2
+
+            # --- pixi environment isolation ----------------------------------
+            # pixi always writes project environments to .pixi/ inside the
+            # project. Redirect that directory to a named volume so the heavy
+            # env files stay out of the host bind-mount.
+            if [ -n "''${ZACH_AGENT_PROJECT_ENV_NAME:-}" ]; then
+              pixi_env_dir="/opt/pixi-envs/''${ZACH_AGENT_PROJECT_ENV_NAME}"
+              mkdir -p "$pixi_env_dir"
+              if [ -f /workspace/pixi.toml ] || { [ -f /workspace/pyproject.toml ] && grep -q '^\[tool\.pixi' /workspace/pyproject.toml; }; then
+                if [ -e /workspace/.pixi ] && [ ! -L /workspace/.pixi ]; then
+                  echo "warning: /workspace/.pixi is a regular directory; leaving it host-visible" >&2
+                else
+                  mkdir -p "$pixi_env_dir/.pixi"
+                  ln -sfn "$pixi_env_dir/.pixi" /workspace/.pixi
+                  echo "  pixi    $pixi_env_dir/.pixi"
+                fi
+              fi
+            fi
 
             # Bootstrap the agent on first use (swap for the vendored package
             # above once the hashes are pinned).

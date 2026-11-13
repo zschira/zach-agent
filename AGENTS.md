@@ -333,38 +333,58 @@ and its author now recommends `uv`; `mach-nix` is dead; `uv2nix` +
 `pyproject.nix` is the current direction for lockfile-driven environments;
 `withPackages` remains correct for small fixed sets like this one.
 
+### Dynamic linker shim (`nix-ld`)
+
+The image is non-FHS, so prebuilt Linux binaries that hardcode
+`/lib64/ld-linux-x86-64.so.2` cannot start out of the box. The shellHook
+installs `nix-ld` as a shim at `/lib64/ld-linux-x86-64.so.2` and exports
+`NIX_LD` (the real glibc loader) plus `NIX_LD_LIBRARY_PATH`. This lets
+`uv`-downloaded managed Pythons, manylinux wheels, and precompiled hook
+binaries run without patching.
+
+In addition, `LD_LIBRARY_PATH` is exported with the same library list so the
+nix-built `python3.13` can resolve extension modules (e.g. `duckdb`) that need
+`libstdc++.so.6`.
+
 ### `uv`
 
-`uv` is in the dev shell for working on mounted projects, but **this image is
-non-FHS** — there is no `/lib64/ld-linux-x86-64.so.2` and no `/usr/lib`. Since
-`uv` works by downloading prebuilt binaries, results vary:
+`uv` is in the dev shell for working on mounted projects. With `nix-ld`, most
+prebuilt wheels now work:
 
 | Case | Works? |
 |---|---|
 | Pure-Python wheels | Yes |
-| manylinux wheels with C extensions | Usually; fails if they need libs absent from the library path |
-| `uv python install` | Blocked deliberately |
+| manylinux wheels with C extensions | Yes, provided their libs are covered by `NIX_LD_LIBRARY_PATH` / `LD_LIBRARY_PATH` |
+| `uv python install` | Yes for versions already in the shell; downloads are allowed but may still fail for versions needing libs not in the search path |
 
-`UV_PYTHON_DOWNLOADS = "never"` is set in `env` so `uv` does not try to fetch
-portable CPython builds that cannot start here (no `/lib64/ld-linux-x86-64.so.2`).
-Python 3.12 remains the default `python3` interpreter and powers the agent's
-skills; a `python3.13` interpreter is also exposed on `PATH` so `uv` can resolve
-projects requiring 3.13 without downloads. A project requesting a Python version
-not available in the shell will still fail to resolve rather than silently
-downloading one.
+`UV_PYTHON_DOWNLOADS = "automatic"` is set so `uv` can fetch portable CPython
+builds, which the `nix-ld` shim can run. Python 3.12 remains the default
+`python3` interpreter and powers the agent's skills; a `python3.13` interpreter
+is also exposed on `PATH` so `uv` can resolve projects requiring 3.13 without
+downloads.
 
-### Why not `pixi`
+### `pixi`
 
-`pixi` was considered and **deliberately left out**. Conda-forge packages ship
-their own `python` executable, which needs the FHS dynamic linker this image
-lacks — and unlike `uv`, there is no `UV_PYTHON`-style redirect, because
-providing the interpreter is the whole point of a conda environment. It would
-also write `.pixi/` into the bind-mounted project, repeating the host-`.venv`
-conflict below.
+`pixi` is included and supported via the same `nix-ld` shim. Conda-forge
+packages ship their own interpreter, so they rely on `/lib64/ld-linux-x86-64.so.2`
+just like manylinux wheels; `nix-ld` handles that.
 
-Two real fixes if conda support becomes necessary: `nix-ld` (a shim dynamic
-linker written into the image) or `pkgs.buildFHSEnv` (needs user namespaces, so
-likely `--privileged` — which cuts against the sandbox goal).
+The `shellHook` also redirects `.pixi/` out of the bind-mounted project and into
+`/opt/pixi-envs/$ZACH_AGENT_PROJECT_ENV_NAME` when the launcher sets
+`ZACH_AGENT_PROJECT_ENV_NAME`, avoiding the same host/container `.venv` conflict.
+
+### Project quality tooling
+
+The dev shell also includes nix-built copies of `ruff`, `pre-commit`, `typos`,
+and `go`. These are on `PATH` independently of any mounted-project venv, so:
+
+- `pre-commit run` works immediately, even before `uv sync`.
+- `repo: local` / `language: system` hooks can use the nix binaries instead of
+  downloading their own.
+- Golang-based hooks such as `trufflehog` can build.
+
+If a project's `.pre-commit-config.yaml` downloads hooks instead, those
+precompiled binaries are handled by the `nix-ld` shim.
 
 ### The host `.venv` conflict
 
@@ -413,7 +433,6 @@ Implications worth knowing:
   not the vendored `buildNpmPackage`. The package output exists but has
   `lib.fakeHash` placeholders — build once and copy the real hashes from the
   error to switch over. Until then dependency resolution is not reproducible.
-- **Conda/`pixi` projects are unsupported.** See "Why not `pixi`" above.
 - **`HOME` must agree between build and run** for the `~/.agents/skills/nix`
   symlink to be where Pi looks. The `shellHook` falls back to `/root`, matching
   the `nixos/nix` default.

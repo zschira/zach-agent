@@ -392,6 +392,11 @@ project itself). `PIXI_CACHE_DIR=/opt/pixi-cache` is on the `pi-agent-pixi-cache
 volume so packages are not re-downloaded every run. Only `pixi.toml` /
 `pyproject.toml` and `pixi.lock` are shared with the host.
 
+`pixi` is taken from a separate `nixpkgs-unstable` input rather than the
+`nixos-25.05` pin: 25.05 ships 0.46, which cannot read lockfile v7, so prek's
+`pixi-lock-update` hook failed on any project with a current `pixi.lock`. Bump
+it with `nix flake update --flake ./docker nixpkgs-unstable`.
+
 Resolving and installing requires network.
 
 ### The host `.venv` conflict

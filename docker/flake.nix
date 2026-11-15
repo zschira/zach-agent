@@ -4,6 +4,11 @@
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
 
+    # pixi only. 25.05 ships 0.46, which cannot read lockfile v7 (written by
+    # current pixi), so prek's pixi-lock-update hook fails. Everything else
+    # stays on the stable pin. Bump with: nix flake update nixpkgs-unstable
+    nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
+
     # Skill repos. `flake = false` means "just fetch the source tree" — the
     # repos don't need to contain a flake.nix. Each revision is pinned in
     # flake.lock; bump one with:
@@ -134,7 +139,7 @@
 
             # conda-forge packages ship their own interpreter; the nix-ld shim
             # below lets them run.
-            pixi
+            inputs.nixpkgs-unstable.legacyPackages.${pkgs.system}.pixi
 
             # pi-coding-agent runtime
             nodejs_22

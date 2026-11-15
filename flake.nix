@@ -78,6 +78,8 @@
                 -v pi-agent-home:/root/.pi/agent \
                 -v pi-agent-uv-envs:/opt/uv-envs \
                 -v pi-agent-uv-cache:/opt/uv-cache \
+                -v pi-agent-pixi-envs:/opt/pixi-envs \
+                -v pi-agent-pixi-cache:/opt/pixi-cache \
                 -e OPENROUTER_API_KEY \
                 -e GIT_AUTHOR_NAME="$GIT_AUTHOR_NAME" \
                 -e GIT_AUTHOR_EMAIL="$GIT_AUTHOR_EMAIL" \

@@ -132,6 +132,10 @@
             uv
             nix-ld
 
+            # conda-forge packages ship their own interpreter; the nix-ld shim
+            # below lets them run.
+            pixi
+
             # pi-coding-agent runtime
             nodejs_22
           ];
@@ -210,6 +214,12 @@
             # Package downloads are cached here; put it on a volume too,
             # otherwise every run re-fetches every wheel.
             UV_CACHE_DIR = "/opt/uv-cache";
+
+            # Same bind-mount problem as uv's .venv: pixi would write .pixi/ into
+            # /workspace. Detached environments (set in the shellHook's pixi
+            # config) live under this volume instead; the cache likewise.
+            PIXI_ENVS_DIR = "/opt/pixi-envs";
+            PIXI_CACHE_DIR = "/opt/pixi-cache";
           };
 
           shellHook = ''
@@ -243,6 +253,12 @@
             echo "  rg      $(rg --version | head -n1 | cut -d' ' -f2)"
             echo "  duckdb  $(duckdb --version | cut -d' ' -f1)"
             echo "  python  $(python3 --version 2>/dev/null | cut -d' ' -f2 || echo none) (skills), uv $(uv --version | cut -d' ' -f2)"
+
+            # --- pixi ---------------------------------------------------------
+            # Uses the nix-ld shim above. System-wide config: keep environments out of the bind-mounted
+            # project (see PIXI_ENVS_DIR above).
+            mkdir -p /etc/pixi "$PIXI_ENVS_DIR" "$PIXI_CACHE_DIR"
+            printf 'detached-environments = "%s"\n' "$PIXI_ENVS_DIR" > /etc/pixi/config.toml
 
             # --- git identity ------------------------------------------------
             # GIT_AUTHOR_* are injected by `make develop`, read from the host's

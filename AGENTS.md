@@ -119,6 +119,8 @@ The launcher mounts and injects the same runtime state as the old Makefile:
 | `-v pi-agent-uv-envs:/opt/uv-envs` | Base volume for per-project uv venvs, kept out of the bind-mounted project |
 | `-v pi-agent-uv-cache:/opt/uv-cache` | uv's package cache, persisted across runs |
 | `-v $AGENT_KEYS:/run/agent-keys:ro` | Agent signing key, read-only (`~/.agent-keys` by default) |
+| `-v pi-agent-pixi-envs:/opt/pixi-envs` | pixi environments, kept out of the bind-mounted project |
+| `-v pi-agent-pixi-cache:/opt/pixi-cache` | pixi/rattler package cache, persisted across runs |
 | `-e UV_PROJECT_ENVIRONMENT=/opt/uv-envs/<project>` | Per-project uv venv directory, derived from workspace basename |
 | `-e OPENROUTER_API_KEY` | Forwarded from the host shell (no `=`) |
 | `-e GIT_AUTHOR_NAME/EMAIL` | Read from the workspace repo's git config |
@@ -364,6 +366,24 @@ prebuilt wheels now work:
 `UV_PYTHON_DOWNLOADS = "automatic"` is set so `uv` can fetch portable CPython
 builds, which the `nix-ld` shim can run. The agent's skills run in `/opt/agent-venv` (Python 3.12); project interpreters
 come from `uv`.
+
+### `pixi`
+
+`pixi` is in the dev shell for conda-based projects mounted at `/workspace`.
+Conda-forge packages ship their own `python` and other binaries linked against
+the FHS loader, so it relies on the `nix-ld` shim above; only the libraries in
+`NIX_LD_LIBRARY_PATH` are visible to them, so a package needing something else
+fails at start-up with a missing `.so`.
+
+Like uv's `.venv`, pixi's default `.pixi/` directory would land in the
+bind-mounted project and collide with a host-created one. The `shellHook` writes
+`/etc/pixi/config.toml` with `detached-environments = "/opt/pixi-envs"`, so
+environments live on the `pi-agent-pixi-envs` volume (pixi namespaces them per
+project itself). `PIXI_CACHE_DIR=/opt/pixi-cache` is on the `pi-agent-pixi-cache`
+volume so packages are not re-downloaded every run. Only `pixi.toml` /
+`pyproject.toml` and `pixi.lock` are shared with the host.
+
+Resolving and installing requires network.
 
 ### The host `.venv` conflict
 

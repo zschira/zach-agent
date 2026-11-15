@@ -13,6 +13,14 @@ RUN mkdir -p /etc/nix \
       'max-jobs = auto' \
       >> /etc/nix/nix.conf
 
+# Expose the CA bundle at the conventional FHS path. nixos/nix only ships it
+# under /nix/var/nix/profiles/default and sets SSL_CERT_FILE, which tools with
+# their own TLS stack (e.g. DuckDB's extension installer, used by PUDL's test
+# conftest) ignore - they fail with "Problem with the SSL CA cert".
+RUN mkdir -p /etc/ssl/certs \
+ && ln -sf /nix/var/nix/profiles/default/etc/ssl/certs/ca-bundle.crt \
+      /etc/ssl/certs/ca-certificates.crt
+
 ENV NIX_CONFIG="experimental-features = nix-command flakes"
 ENV LANG=C.UTF-8
 ENV SHELL=/bin/bash

@@ -340,6 +340,15 @@ Don't set `VIRTUAL_ENV` or point `UV_PROJECT_ENVIRONMENT` at the agent venv:
 project venvs live under `/opt/uv-envs/<project>` and are separate. A bare
 `python3` in `/workspace` does see the agent packages.
 
+### CA certificates
+
+`nixos/nix` keeps its CA bundle under `/nix/var/nix/profiles/default/etc/ssl/certs`
+and points `SSL_CERT_FILE` at it, but `/etc/ssl/certs` is empty. Tools with their
+own TLS stack that ignore the env vars (DuckDB's `INSTALL spatial`/`httpfs`) then
+fail with "Problem with the SSL CA cert". The Dockerfile symlinks the bundle to
+`/etc/ssl/certs/ca-certificates.crt`. DuckDB extensions are cached in
+`~/.duckdb`, which is not on a volume, so they are re-downloaded per container.
+
 ### Dynamic linker shim (`nix-ld`)
 
 The image is non-FHS, so prebuilt Linux binaries that hardcode

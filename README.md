@@ -20,7 +20,7 @@ See `AGENTS.md` for detailed design notes.
   `docker/flake.nix` is realised and pinned with a profile, then dumped with
   `nix print-dev-env` to `/opt/env/dev-shell-env.sh`.
 - **Fast start-up.** The `ENTRYPOINT` (`/entrypoint.sh`) just sources that dump,
-  so there is no flake evaluation per run. The default command is `bash -l`;
+  so there is no flake evaluation per run. The default command is `pi`;
   any command you pass replaces it.
 - **Toolchain.** Includes git, openssh, `uv`, `pixi`, `jq`, `duckdb`,
   `poppler-utils`, `qpdf`, and `pi-coding-agent` itself. Python for the agent
@@ -73,8 +73,8 @@ nix run github:zschira/zach-agent -- ../some-project
 nix profile install github:zschira/zach-agent
 zach-agent ../some-project
 
-# Run a specific command instead of the default shell
-zach-agent ../some-project pi
+# Get a shell instead of pi
+zach-agent ../some-project bash -l
 ```
 
 The launcher resolves the workspace path, reads the git identity from the
@@ -114,7 +114,7 @@ docker run --rm -it \
 ```
 
 Drop the `agent-keys` mount if you have no signing key (commits will be
-unsigned). Append a command (e.g. `pi`) after `$IMAGE` to skip the shell.
+unsigned). Append a command (e.g. `bash -l`) after `$IMAGE` to replace the default `pi`.
 
 On SELinux hosts (Fedora, RHEL) add `:z` or `:Z` to the bind mounts.
 

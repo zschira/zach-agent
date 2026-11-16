@@ -81,5 +81,5 @@ RUN /entrypoint.sh env UV_PROJECT_ENVIRONMENT=/opt/agent-venv \
  && /entrypoint.sh python3 -c "import polars, pandas, s3fs, pyarrow, requests, pypdf, pdfplumber, reportlab"
 
 ENTRYPOINT ["/entrypoint.sh"]
-CMD ["bash", "-l"]
+CMD ["pi"]
 

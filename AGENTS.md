@@ -116,12 +116,9 @@ The launcher mounts and injects the same runtime state as the old Makefile:
 |---|---|
 | `-v <workspace>:/workspace` | The project being worked on |
 | `-v pi-agent-home:/root/.pi/agent` | Pi's own state (sessions, history), persists across `--rm` |
-| `-v pi-agent-uv-envs:/opt/uv-envs` | Base volume for per-project uv venvs, kept out of the bind-mounted project |
-| `-v pi-agent-uv-cache:/opt/uv-cache` | uv's package cache, persisted across runs |
 | `-v $AGENT_KEYS:/run/agent-keys:ro` | Agent signing key, read-only (`~/.agent-keys` by default) |
-| `-v pi-agent-pixi-envs:/opt/pixi-envs` | pixi environments, kept out of the bind-mounted project |
-| `-v pi-agent-pixi-cache:/opt/pixi-cache` | pixi/rattler package cache, persisted across runs |
-| `-e UV_PROJECT_ENVIRONMENT=/opt/uv-envs/<project>` | Per-project uv venv directory, derived from workspace basename |
+| `-v pi-agent-cache:/root/.cache` | Generic `~/.cache`: uv (`uv/` cache, `uv-envs/<project>` venvs) and pixi (`pixi/` cache, `pixi-envs/` environments), plus prek's hook repos/environments (first run compiles e.g. TruffleHog, taking minutes) |
+| `-e UV_PROJECT_ENVIRONMENT=/root/.cache/uv-envs/<project>` | Per-project uv venv directory, derived from workspace basename |
 | `-e OPENROUTER_API_KEY` | Forwarded from the host shell (no `=`) |
 | `-e GIT_AUTHOR_NAME/EMAIL` | Read from the workspace repo's git config |
 
@@ -337,7 +334,7 @@ not nixpkgs; `requires-python` pins the minor version. Dependencies of an arbitr
 runtime (which requires network).
 
 Don't set `VIRTUAL_ENV` or point `UV_PROJECT_ENVIRONMENT` at the agent venv:
-project venvs live under `/opt/uv-envs/<project>` and are separate. A bare
+project venvs live under `/root/.cache/uv-envs/<project>` and are separate. A bare
 `python3` in `/workspace` does see the agent packages.
 
 ### CA certificates
@@ -386,9 +383,9 @@ fails at start-up with a missing `.so`.
 
 Like uv's `.venv`, pixi's default `.pixi/` directory would land in the
 bind-mounted project and collide with a host-created one. The `shellHook` writes
-`/etc/pixi/config.toml` with `detached-environments = "/opt/pixi-envs"`, so
-environments live on the `pi-agent-pixi-envs` volume (pixi namespaces them per
-project itself). `PIXI_CACHE_DIR=/opt/pixi-cache` is on the `pi-agent-pixi-cache`
+`/etc/pixi/config.toml` with `detached-environments = "/root/.cache/pixi-envs"`, so
+environments live on the `pi-agent-cache` volume, next to the cache (so rattler can hardlink) (pixi namespaces them per
+project itself). `PIXI_CACHE_DIR=/root/.cache/pixi` is on the `pi-agent-cache`
 volume so packages are not re-downloaded every run. Only `pixi.toml` /
 `pyproject.toml` and `pixi.lock` are shared with the host.
 
@@ -412,14 +409,19 @@ The damaging direction is the agent running `uv sync`, which **deletes and
 recreates** `.venv` with container paths, breaking manual development on the
 host. Re-syncing on the host then breaks the container, and so on.
 
-The fix is putting each project's venv under `/opt/uv-envs/<project>` via
+The fix is putting each project's venv under `/root/.cache/uv-envs/<project>` via
 `UV_PROJECT_ENVIRONMENT` — uv's documented escape hatch for exactly this
 bind-mount collision. The container's venv lives outside `/workspace` entirely,
 in a named volume, so host and container keep separate environments from the
 same `pyproject.toml` / `uv.lock`. `UV_CACHE_DIR` is likewise moved to
-`/opt/uv-cache` on a volume, so wheels are not re-fetched every run. The launcher
+`/root/.cache/uv` (the `pi-agent-cache` volume), so wheels are not re-fetched every run. The launcher
 derives `<project>` from the workspace directory name by default, and you can
 override it with `ZACH_AGENT_UV_ENV_NAME`.
+
+The venvs sit on the same volume as uv's cache (`pi-agent-cache`) on purpose: uv
+hardlinks cache files into the venv, which fails across mounts (`EXDEV`) and
+forces a slow full copy. The trade-off is that deleting the cache volume also
+deletes the venvs (they re-sync from `uv.lock`).
 
 Implications worth knowing:
 
@@ -427,8 +429,8 @@ Implications worth knowing:
   vice versa. Only `pyproject.toml` and `uv.lock` are shared — which is the
   correct boundary.
 - Running `uv run` works, but an editor or LSP pointed at `/workspace/.venv`
-  inside the container will not find anything. Use `/opt/uv-envs/<project>`.
-- Each project gets a separate subdirectory under `/opt/uv-envs`, so switching
+  inside the container will not find anything. Use `/root/.cache/uv-envs/<project>`.
+- Each project gets a separate subdirectory under `/root/.cache/uv-envs`, so switching
   `WORKSPACE` between projects does not clobber another project's venv. If you
   want a different name than the directory basename, set `ZACH_AGENT_UV_ENV_NAME`.
 

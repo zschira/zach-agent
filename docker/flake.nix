@@ -212,19 +212,19 @@
             # script shebangs), so a host-created /workspace/.venv is not usable
             # here — and `uv sync` would delete and recreate it, breaking manual
             # development on the host. The launcher sets a per-project
-            # UV_PROJECT_ENVIRONMENT under /opt/uv-envs; this default only applies
+            # UV_PROJECT_ENVIRONMENT under /root/.cache/uv-envs; this default only applies
             # when the image is run outside the launcher.
-            UV_PROJECT_ENVIRONMENT = "/opt/uv-envs/default";
+            UV_PROJECT_ENVIRONMENT = "/root/.cache/uv-envs/default";
 
-            # Package downloads are cached here; put it on a volume too,
-            # otherwise every run re-fetches every wheel.
-            UV_CACHE_DIR = "/opt/uv-cache";
+            # Package downloads are cached under ~/.cache, which the launcher
+            # mounts as a volume; otherwise every run re-fetches every wheel.
+            UV_CACHE_DIR = "/root/.cache/uv";
 
             # Same bind-mount problem as uv's .venv: pixi would write .pixi/ into
             # /workspace. Detached environments (set in the shellHook's pixi
-            # config) live under this volume instead; the cache likewise.
-            PIXI_ENVS_DIR = "/opt/pixi-envs";
-            PIXI_CACHE_DIR = "/opt/pixi-cache";
+            # config) live under this volume instead. Its cache sits under ~/.cache.
+            PIXI_ENVS_DIR = "/root/.cache/pixi-envs";
+            PIXI_CACHE_DIR = "/root/.cache/pixi";
           };
 
           shellHook = ''

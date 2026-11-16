@@ -121,6 +121,14 @@ The launcher mounts and injects the same runtime state as the old Makefile:
 | `-e UV_PROJECT_ENVIRONMENT=/root/.cache/uv-envs/<project>` | Per-project uv venv directory, derived from workspace basename |
 | `-e OPENROUTER_API_KEY` | Forwarded from the host shell (no `=`) |
 | `-e GIT_AUTHOR_NAME/EMAIL` | Read from the workspace repo's git config |
+| `-v $VAR:$VAR -e VAR=$VAR` for `PUDL_INPUT`, `PUDL_OUTPUT`, `DAGSTER_HOME` | Only for variables set on the host; mounted read-write at the **same path** inside the container |
+
+The three PUDL/Dagster directories are never created by the launcher: if a
+variable is set but is not an existing directory, the launcher exits with an
+error before starting the container. Unset or empty variables are skipped.
+`DAGSTER_HOME` is the host's own state directory, so don't run a host and a
+container Dagster daemon against it at the same time. Ownership of files written
+there follows the Docker/podman difference described above.
 
 Launcher environment overrides: `ZACH_AGENT_IMAGE`, `ZACH_AGENT_UV_ENV_NAME`,
 `AGENT_KEYS`.

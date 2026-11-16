@@ -73,6 +73,26 @@
                 echo "warning: $AGENT_KEYS not found; commits will be unsigned" >&2
               fi
 
+              # Mount PUDL_INPUT, PUDL_OUTPUT and DAGSTER_HOME at the same path
+              # inside the container when set on the host. Directories must
+              # already exist; they are never created here.
+              pudl_mounts=()
+              mounted=()
+              for var in PUDL_INPUT PUDL_OUTPUT DAGSTER_HOME; do
+                val="''${!var:-}"
+                [[ -n "$val" ]] || continue
+                if [[ ! -d "$val" ]]; then
+                  echo "error: $var=$val is not an existing directory" >&2
+                  exit 1
+                fi
+                val=$(realpath "$val")
+                pudl_mounts+=(-v "$val:$val" -e "$var=$val")
+                mounted+=("$var")
+              done
+              if [[ ''${#mounted[@]} -gt 0 ]]; then
+                echo "zach-agent: mounted ''${mounted[*]}" >&2
+              fi
+
               exec docker run --rm -it \
                 -v "$workspace_abs:/workspace" \
                 -v pi-agent-home:/root/.pi/agent \
@@ -82,6 +102,7 @@
                 -e GIT_AUTHOR_EMAIL="$GIT_AUTHOR_EMAIL" \
                 -e UV_PROJECT_ENVIRONMENT="$UV_PROJECT_ENVIRONMENT" \
                 "''${key_mount[@]}" \
+                "''${pudl_mounts[@]}" \
                 "$IMAGE" "$@"
             '';
         in

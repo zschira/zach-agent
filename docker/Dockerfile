@@ -24,6 +24,8 @@ RUN mkdir -p /etc/ssl/certs \
 ENV NIX_CONFIG="experimental-features = nix-command flakes"
 ENV LANG=C.UTF-8
 ENV SHELL=/bin/bash
+# Container has no clipboard tool; make pi emit OSC 52 so the host terminal gets the copy
+ENV PI_CLIPBOARD_OSC52=1
 
 # The flake lives here; the actual project is bind-mounted at /workspace.
 WORKDIR /opt/env

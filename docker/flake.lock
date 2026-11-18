@@ -49,6 +49,22 @@
         "type": "github"
       }
     },
+    "marimo-skills": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1794598249,
+        "narHash": "sha256-S98F8lTGcOZU5ppRqYbKtf22+wzgDXq8aFY+tMp4sgU=",
+        "owner": "marimo-team",
+        "repo": "skills",
+        "rev": "d5783f16066d6b05576e8a8637466c11f2433734",
+        "type": "github"
+      },
+      "original": {
+        "owner": "marimo-team",
+        "repo": "skills",
+        "type": "github"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1767313136,
@@ -86,6 +102,7 @@
         "agent-skills": "agent-skills",
         "anthropic-skills": "anthropic-skills",
         "dagster-skills": "dagster-skills",
+        "marimo-skills": "marimo-skills",
         "nixpkgs": "nixpkgs",
         "nixpkgs-unstable": "nixpkgs-unstable"
       }

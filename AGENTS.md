@@ -204,6 +204,7 @@ considerably.
 | `catalyst-cooperative` | `catalyst-cooperative/agent-skills` | default | `skills/<name>/SKILL.md` |
 | `anthropic` | `anthropics/skills` | default | `document-skills/<name>/SKILL.md` etc. |
 | `dagster` | `dagster-io/skills` | `release-stable` | `plugins/<plugin>/skills/<skill>/SKILL.md` |
+| `marimo` | `marimo-team/skills` | default | `skills/<name>/SKILL.md` |
 
 Dagster is pinned to `release-stable` because that is what all upstream install
 paths deliver; `master` carries unreleased content. Its plugin directories have

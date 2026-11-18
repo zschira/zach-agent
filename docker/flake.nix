@@ -31,6 +31,12 @@
       url = "github:dagster-io/skills/release-stable";
       flake = false;
     };
+
+    # Marimo notebook skills. Layout: skills/<name>/SKILL.md.
+    marimo-skills = {
+      url = "github:marimo-team/skills";
+      flake = false;
+    };
   };
 
   outputs = inputs@{ self, nixpkgs, ... }:
@@ -57,6 +63,7 @@
         catalyst-cooperative = inputs.agent-skills;
         anthropic = inputs.anthropic-skills;
         dagster = inputs.dagster-skills;
+        marimo = inputs.marimo-skills;
       };
     in
     {

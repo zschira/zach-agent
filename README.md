@@ -14,41 +14,6 @@ environment definition.
 
 See `AGENTS.md` for detailed design notes.
 
-## How the container works
-
-- **Nix-based image.** Built `FROM nixos/nix`. At build time the dev shell from
-  `docker/flake.nix` is realised and pinned with a profile, then dumped with
-  `nix print-dev-env` to `/opt/env/dev-shell-env.sh`.
-- **Fast start-up.** The `ENTRYPOINT` (`/entrypoint.sh`) just sources that dump,
-  so there is no flake evaluation per run. The default command is `pi`;
-  any command you pass replaces it.
-- **Toolchain.** Includes git, openssh, `uv`, `pixi`, `jq`, `duckdb`,
-  `poppler-utils`, `qpdf`, and `pi-coding-agent` itself. Python for the agent
-  and its skills lives in `/opt/agent-venv`.
-- **Skills.** Pinned skill repos (Anthropic, Catalyst Cooperative, Dagster) are
-  collected into one store path and symlinked to `~/.agents/skills/nix`, where
-  Pi discovers them recursively.
-- **`/workspace` is a bind mount**, not a copy. Your project is mounted there at
-  runtime. Editing `flake.nix` on the host has no effect until the image is rebuilt.
-- **Prebuilt binaries work** via a `nix-ld` shim at `/lib64/ld-linux-x86-64.so.2`
-  (uv-managed Pythons, manylinux wheels, conda packages).
-- **Per-project environments off the host tree.** uv venvs
-  (`/root/.cache/uv-envs/<project>`) and pixi environments (`/root/.cache/pixi-envs`) live on named
-  volumes, so the container never clobbers a host `.venv`/`.pixi`.
-- **Git identity and signing.** You are the commit *author*; the agent is the
-  *committer* (`Name (aider)`). Commits are SSH-signed with a dedicated key
-  mounted read-only at `/run/agent-keys`. Your own key is never mounted.
-- **Secrets** (`OPENROUTER_API_KEY`) are injected at runtime, never baked in.
-
-### Volumes and mounts
-
-| Mount | Purpose |
-|---|---|
-| `<workspace>:/workspace` | The project |
-| `pi-agent-home:/root/.pi/agent` | Pi sessions and history |
-| `pi-agent-cache:/root/.cache` | uv/pixi environments and caches, prek hook environments |
-| `~/.agent-keys:/run/agent-keys:ro` | Agent signing key (optional) |
-
 ## Prerequisites
 
 - Podman on the host (Docker also works if you run the image directly, see below).
@@ -128,6 +93,41 @@ docker build -f docker/Dockerfile -t zach-agent .   # context is repo root
 
 The build context must be the repo root since the Dockerfile copies `AGENTS.md`.
 CI does the same and pushes to GHCR on each push to `main`.
+
+## How the container works
+
+- **Nix-based image.** Built `FROM nixos/nix`. At build time the dev shell from
+  `docker/flake.nix` is realised and pinned with a profile, then dumped with
+  `nix print-dev-env` to `/opt/env/dev-shell-env.sh`.
+- **Fast start-up.** The `ENTRYPOINT` (`/entrypoint.sh`) just sources that dump,
+  so there is no flake evaluation per run. The default command is `pi`;
+  any command you pass replaces it.
+- **Toolchain.** Includes git, openssh, `uv`, `pixi`, `jq`, `duckdb`,
+  `poppler-utils`, `qpdf`, and `pi-coding-agent` itself. Python for the agent
+  and its skills lives in `/opt/agent-venv`.
+- **Skills.** Pinned skill repos (Anthropic, Catalyst Cooperative, Dagster) are
+  collected into one store path and symlinked to `~/.agents/skills/nix`, where
+  Pi discovers them recursively.
+- **`/workspace` is a bind mount**, not a copy. Your project is mounted there at
+  runtime. Editing `flake.nix` on the host has no effect until the image is rebuilt.
+- **Prebuilt binaries work** via a `nix-ld` shim at `/lib64/ld-linux-x86-64.so.2`
+  (uv-managed Pythons, manylinux wheels, conda packages).
+- **Per-project environments off the host tree.** uv venvs
+  (`/root/.cache/uv-envs/<project>`) and pixi environments (`/root/.cache/pixi-envs`) live on named
+  volumes, so the container never clobbers a host `.venv`/`.pixi`.
+- **Git identity and signing.** You are the commit *author*; the agent is the
+  *committer* (`Name (aider)`). Commits are SSH-signed with a dedicated key
+  mounted read-only at `/run/agent-keys`. Your own key is never mounted.
+- **Secrets** (`OPENROUTER_API_KEY`) are injected at runtime, never baked in.
+
+### Volumes and mounts
+
+| Mount | Purpose |
+|---|---|
+| `<workspace>:/workspace` | The project |
+| `pi-agent-home:/root/.pi/agent` | Pi sessions and history |
+| `pi-agent-cache:/root/.cache` | uv/pixi environments and caches, prek hook environments |
+| `~/.agent-keys:/run/agent-keys:ro` | Agent signing key (optional) |
 
 ## Sandbox implications: Docker vs Podman
 

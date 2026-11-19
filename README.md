@@ -51,7 +51,8 @@ See `AGENTS.md` for detailed design notes.
 
 ## Prerequisites
 
-- Docker or Podman on the host.
+- Podman on the host (Docker also works if you run the image directly, see below).
+- [Nix](https://nixos.org/download/) with flakes enabled (see the [official install docs](https://nix.dev/install-nix)), to run the launcher.
 - `OPENROUTER_API_KEY` exported in your shell.
 - A git `user.name` / `user.email` configured for the workspace repo.
 - Optional, for signed commits (one-time):
@@ -83,7 +84,7 @@ name from the directory name, and runs the matching image. When run from a locke
 flake reference it pulls the image tagged with that exact commit
 (`sha-<rev>`); from a dirty local tree it uses `latest`.
 
-It calls `docker` from your `PATH` (a podman shim works).
+It calls `podman` from your `PATH`.
 
 Environment overrides:
 

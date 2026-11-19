@@ -89,20 +89,14 @@ zach-agent ../some-project
 
 ### Container runtime
 
-The launcher calls `docker`, but deliberately does **not** pin it into its
-`PATH` — it resolves from the caller's `PATH`, so a host `docker` that is really
-a podman shim (`podman-docker`, or `virtualisation.podman.dockerCompat` on
-NixOS) is used as-is.
+The launcher calls `podman` directly, but deliberately does **not** pin it into
+its `PATH` — it resolves from the caller's `PATH`. Pinning `pkgs.podman` would
+miss the host's rootless setup (setuid helpers, `containers.conf`, subuid
+ranges), so the runtime stays a host concern.
 
-Adding `pkgs.docker` to `makeBinPath` is actively wrong here: it shadows the
-shim with a real Docker client, which then fails with a connection error because
-there is no `dockerd` to talk to — Docker's CLI is only an HTTP client for its
-daemon, whereas podman is daemonless. Pinning `pkgs.podman` instead would miss
-the host's rootless setup (setuid helpers, `containers.conf`, subuid ranges), so
-the runtime stays a host concern.
-
-Only the flags below are used, and the shim covers them, so no podman-specific
-handling is needed. Two behavioural differences are worth knowing:
+Only the flags below are used. Docker's CLI accepts them too, so the image can
+still be run with `docker run` by hand, but the launcher no longer supports it.
+Two behavioural differences are worth knowing:
 
 - **File ownership.** Under rootless podman, container UID 0 maps to the invoking
   host user, so files the agent writes to `/workspace` come out owned by you.
@@ -240,7 +234,7 @@ The `zach-agent` launcher reads it from the host with `git -C <workspace>
 config --get user.name`. Resolving *inside the workspace repo* means per-repo
 overrides and `includeIf "gitdir:..."` conditional includes are honoured — point
 the sandbox at a work repo and it picks up the work address automatically. The
-launcher exits before starting Docker if neither config nor an explicit
+launcher exits before starting the container if neither config nor an explicit
 override supplies a value.
 
 ### Signing key

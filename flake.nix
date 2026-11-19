@@ -34,10 +34,10 @@
 
           launcher = pkgs.writeShellScriptBin "zach-agent" ''
               set -euo pipefail
-              # No container runtime is pinned here on purpose: the host's
-              # `docker` may be a podman shim, and a nixpkgs podman would not
-              # see the host's rootless configuration. Resolve it from the
-              # caller's PATH instead.
+              # podman is not pinned here on purpose: a nixpkgs podman would
+              # not see the host's rootless configuration (setuid helpers,
+              # containers.conf, subuid ranges). Resolve it from the caller's
+              # PATH instead.
               export PATH="${pkgs.lib.makeBinPath [ pkgs.git pkgs.coreutils ]}:$PATH"
 
               usage() {
@@ -93,7 +93,7 @@
                 echo "zach-agent: mounted ''${mounted[*]}" >&2
               fi
 
-              exec docker run --rm -it \
+              exec podman run --rm -it \
                 -v "$workspace_abs:/workspace" \
                 -v pi-agent-home:/root/.pi/agent \
                 -v pi-agent-cache:/root/.cache \

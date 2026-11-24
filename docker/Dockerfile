@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Nix (NixOS's package manager) on a minimal base, used as the sandbox runtime.
-FROM nixos/nix:2.24.9
+FROM nixos/nix:2.35.6
 
 # Enable flakes + the unified `nix` CLI.
 # filter-syscalls=false keeps builds working under restrictive container runtimes.

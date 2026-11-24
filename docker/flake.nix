@@ -169,14 +169,16 @@
             # uv-managed python can find libstdc++ and friends. The nix-ld
             # shim uses NIX_LD_LIBRARY_PATH; this duplicates it for LD_LIBRARY_PATH
             # so regular glibc-loaded binaries see the same libraries.
+            # readline/ncurses are deliberately omitted: nixpkgs' older readline
+            # shadows the one /bin/bash links against, breaking it with
+            # "undefined symbol: rl_completion_rewrite_hook". They stay in
+            # NIX_LD_LIBRARY_PATH, which only affects nix-ld binaries.
             LD_LIBRARY_PATH = with pkgs; lib.makeLibraryPath [
               stdenv.cc.cc.lib
               zlib
               zstd
               openssl
               libffi
-              ncurses
-              readline
               sqlite
               xz
               bzip2

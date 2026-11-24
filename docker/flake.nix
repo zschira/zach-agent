@@ -272,6 +272,21 @@
             mkdir -p /etc/pixi "$PIXI_ENVS_DIR" "$PIXI_CACHE_DIR"
             printf 'detached-environments = "%s"\n' "$PIXI_ENVS_DIR" > /etc/pixi/config.toml
 
+            # Seed the cache volume with the environments pre-built into the
+            # image (pudl, pudl-archiver). Copied once per name; existing
+            # environments on the volume (possibly updated) are left alone.
+            # Same absolute path as at build time, so prefixes stay valid.
+            if [ -d /opt/pixi-envs-seed ]; then
+              for env in /opt/pixi-envs-seed/*; do
+                [ -d "$env" ] || continue
+                dest="$PIXI_ENVS_DIR/$(basename "$env")"
+                if [ ! -e "$dest" ]; then
+                  echo "seeding pixi env $(basename "$env")..."
+                  cp -a "$env" "$dest.partial" && mv "$dest.partial" "$dest"
+                fi
+              done
+            fi
+
             # --- git identity ------------------------------------------------
             # GIT_AUTHOR_* are injected by `make develop`, read from the host's
             # git config as resolved inside the workspace repo. Environment

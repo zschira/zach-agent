@@ -82,6 +82,29 @@ RUN /entrypoint.sh env UV_PROJECT_ENVIRONMENT=/opt/agent-venv \
       uv sync --frozen --no-cache --project /opt/env/agent-env \
  && /entrypoint.sh python3 -c "import polars, pandas, s3fs, pyarrow, requests, pypdf, pdfplumber, reportlab"
 
+# Pre-build pixi environments for the PUDL repos (main branch). Pixi detached
+# environments are named <project>-<hash of project path>, and conda prefixes
+# are not relocatable, so each repo is cloned at /workspace (where it will be
+# mounted at runtime) and installed under /root/.cache/pixi-envs (where the
+# cache volume will mount). The finished environments are then moved to
+# /opt/pixi-envs-seed, since a volume mounted over /root/.cache would hide
+# them; the shellHook copies them back into the volume on first start.
+# --frozen installs exactly what pixi.lock says. Editable installs of the
+# projects point at /workspace/src, so they resolve once the repo is mounted.
+RUN /entrypoint.sh bash -euc ' \
+      export PIXI_CACHE_DIR=/tmp/pixi-cache; \
+      for spec in "pudl:dev" "pudl-archiver:default"; do \
+        repo=${spec%%:*}; envs=${spec#*:}; \
+        git clone --depth 1 --branch main "https://github.com/catalyst-cooperative/$repo" /tmp/src; \
+        cp -a /tmp/src/. /workspace/; rm -rf /tmp/src; \
+        (cd /workspace && pixi install --frozen -e "$envs"); \
+        find /workspace -mindepth 1 -maxdepth 1 -exec rm -rf {} +; \
+      done; \
+      rm -rf /tmp/pixi-cache; \
+      mkdir -p /opt/pixi-envs-seed; \
+      mv /root/.cache/pixi-envs/* /opt/pixi-envs-seed/; \
+      ls /opt/pixi-envs-seed'
+
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["pi"]
 

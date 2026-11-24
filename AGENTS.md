@@ -399,6 +399,18 @@ it with `nix flake update --flake ./docker nixpkgs-unstable`.
 
 Resolving and installing requires network.
 
+#### Pre-built PUDL environments
+
+The image build clones `pudl` (env `dev`) and `pudl-archiver` (env `default`)
+from `main` and runs `pixi install --frozen`. Each is cloned at `/workspace`,
+because detached env names embed a hash of the project path and conda prefixes
+are not relocatable. They are built under `/root/.cache/pixi-envs` and then
+moved to `/opt/pixi-envs-seed`, since the cache volume hides the image's
+`/root/.cache`. On start the `shellHook` copies any seed env missing from the
+volume back to the same path (once; existing ones are never overwritten).
+The seed reflects `main` at image build time; a later `pixi install` in a
+mounted repo updates the volume copy as needed. Not yet build-tested.
+
 ### The host `.venv` conflict
 
 **A venv cannot be shared between host and container.** It hardcodes absolute
